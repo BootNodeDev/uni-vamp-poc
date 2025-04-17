@@ -42,7 +42,7 @@
     "react-hot-toast": "^2.4.1",
     "react-jazzicon": "^1.0.4",
     "react-number-format": "^5.4.2",
-    "styled-components": "^6.1.13",
+    "styled-components": "^6.1.17",
     "use-debounce": "^10.0.4",
     "viem": "^2.22.1",
     "wagmi": "^2.12.14",
