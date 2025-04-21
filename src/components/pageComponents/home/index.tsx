@@ -1,124 +1,87 @@
 /**
- * Home page example
- *
- * You can safely delete the contents of this file and start from scratch,
- * just make sure to keep the file itself and export a component named Home.
+ * Home page for Balancer to Uniswap v4 migration
  */
+import { BalancerUserPositions } from '@/src/components/BalancerUserPositions'
+import UniswapV4Deposit from '@/src/components/UniswapV4Deposit'
+import { ConnectWalletButton } from '@/src/providers/Web3Provider'
+import { Title } from '@bootnodedev/db-ui-toolkit'
 import styled from 'styled-components'
-
-import { Card, Title } from '@bootnodedev/db-ui-toolkit'
+import { useAccount } from 'wagmi'
 
 /**
- * A centered custom card component
+ * A styled container for the home page
  */
-const CustomCard = styled(Card)`
-  margin: auto;
-  max-width: 90%;
-
-  a {
-    text-decoration: none;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
+const Container = styled.div`
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
 `
 
 /**
- * A styled ul tag
+ * A header component for the page
  */
-const Ul = styled.ul`
+const Header = styled.header`
+  margin-bottom: 2rem;
+  text-align: center;
+`
+
+/**
+ * Styled component for the wallet connection container
+ */
+const ConnectWalletContainer = styled.div`
   display: flex;
   flex-direction: column;
-  font-size: 1.5rem;
-  list-style: circle;
-  padding-left: calc(var(--base-common-padding-xl) + var(--base-common-padding));
-  row-gap: var(--base-gap-xl);
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem;
+  max-width: 600px;
+  margin: 4rem auto;
+  text-align: center;
+  background-color: var(--theme-background-light, #f9f9f9);
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 5%);
+`
 
-  ul {
-    padding-bottom: var(--base-common-padding-xl);
-    padding-top: var(--base-common-padding-xl);
-    row-gap: var(--base-gap);
-  }
+const SectionDivider = styled.div`
+  margin: 3rem 0;
+  border-top: 1px solid var(--theme-border-color-light, #f0f0f0);
+`
+
+const SectionTitle = styled.h2`
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--theme-text-color, #333);
 `
 
 /**
- * A styled pre tag
+ * Main home component showing user's positions
  */
-const Code = styled.pre`
-  background-color: var(--theme-body-background-color);
-  border-radius: 5px;
-  font-size: 1.3rem;
-  margin: var(--base-gap) 0 0;
-  padding: 4px 10px;
-  white-space: normal;
-  word-break: break-all;
-`
-
 export const Home = () => {
+  const { address } = useAccount()
+
+  if (!address) {
+    return (
+      <ConnectWalletContainer>
+        <p>Connect your wallet to view your positions</p>
+        <ConnectWalletButton />
+      </ConnectWalletContainer>
+    )
+  }
+
   return (
-    // You can safely delete this.
-    <CustomCard>
-      <Title>Getting started</Title>
-      <Ul>
-        <li>
-          <a
-            href="https://dappbooster.dev"
-            rel="noreferrer"
-            target="_blank"
-          >
-            dAppBooster demo
-          </a>
-          : a fully functional dAppBooster dApp with plenty of examples and{' '}
-          <a
-            href="https://docs.dappbooster.dev/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            documentation
-          </a>
-          .
-        </li>
-        <li>
-          {/* TODO: Replace by correct link when the fork is ready */}
-          <a
-            href="https://github.com/BootNodeDev/dAppBoosterLandingPage/tree/main/src/components/pageComponents/home/Examples/demos"
-            rel="noreferrer"
-            target="_blank"
-          >
-            Demo's source code on GitHub
-          </a>
-        </li>
-        <li>
-          <a
-            href="https://bootnodedev.github.io/dAppBooster/"
-            rel="noreferrer"
-            target="_blank"
-          >
-            Components technical documentation
-          </a>
-        </li>
-        <li>
-          <b>Where to start?</b>
-          <Ul>
-            <li>
-              Home page <Code>src/components/pageComponents/home/index.tsx</Code>
-            </li>
-            <li>
-              Header <Code>src/components/sharedComponents/Header.tsx</Code>
-            </li>
-            <li>
-              Footer <Code>src/components/sharedComponents/Footer/index.tsx</Code>
-            </li>
-            <li>
-              App layout <Code>src/routes/__root.tsx</Code>
-            </li>
-            <li>
-              Home route <Code>src/routes/index.lazy.tsx</Code>
-            </li>
-          </Ul>
-        </li>
-      </Ul>
-    </CustomCard>
+    <Container>
+      <Header>
+        <Title>Balancer to Uniswap v4 Migration</Title>
+        <p>View your positions and migrate between protocols</p>
+      </Header>
+
+      <SectionTitle>Your Balancer Positions</SectionTitle>
+      <BalancerUserPositions userAddress={address} />
+
+      <SectionDivider />
+
+      <UniswapV4Deposit />
+    </Container>
   )
 }

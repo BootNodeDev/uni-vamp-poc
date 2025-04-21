@@ -1,0 +1,75 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+AI Agent Execution Guidelines for LP Migration PoC
+
+Context & Assumptions
+	•	The PoC is a frontend-only dApp powered by wagmi + viem, running on top of dappBooster.
+	•	Liquidity positions are sourced from Balancer Weighted Pools (2-token) on Sepolia.
+	•	The destination is a predefined Uniswap v4 pool with the same token pair and no hook complexity.
+	•	All operations (approve, exitPool, mint) are executed sequentially through the user’s wallet — no batching or backend orchestration.
+
+⸻
+
+1. Safety-first Execution
+	•	Always verify that the user holds a non-zero BPT balance before offering migration.
+	•	Only allow exitPool actions on Weighted 2-token pools — reject all others.
+	•	Check that both tokens from the Balancer pool are supported by the target Uniswap v4 pool.
+	•	Enforce minAmountsOut = 0 only in PoC mode. For production, slippage control must be implemented.
+
+⸻
+
+2. Transaction Visibility and Feedback
+	•	Each step in the migration process (approve, exitPool, mint) must be explicitly confirmed by the user and include:
+	•	Pre-execution simulation if possible.
+	•	Gas estimation.
+	•	On-screen transaction hash display with link to Sepolia explorer.
+
+⸻
+
+3. Subgraph Dependency and Fallback
+	•	Use Balancer’s Sepolia subgraph for fetching positions.
+	•	If the subgraph is unavailable, inform the user gracefully and suggest hardcoded fallback pools only for development mode.
+
+⸻
+
+4. Token Validation Logic
+	•	After exitPool, verify that the received token balances match expected symbols and order.
+	•	Enforce matching token ordering between Balancer and Uniswap v4 to prevent misaligned mint() calls.
+	•	Only proceed to mint() if both approve() calls for token0 and token1 are successful.
+
+⸻
+
+5. Agent Transparency and Explainability
+	•	Before executing any transaction, the AI agent must explain:
+	•	What the operation does.
+	•	Which contracts are involved.
+	•	What the expected outcome is.
+	•	All user interactions must include a “Why am I doing this?” explanation button.
+
+⸻
+
+6. Dry Run Mode (Optional for Devs)
+	•	Enable a developer toggle to:
+	•	Simulate the entire migration sequence without broadcasting any transaction.
+	•	Print raw calldata for every operation.
+	•	Log resolved ABIs and addresses.
+
+⸻
+
+7. Progressive Disclosure UX
+	•	Avoid overwhelming the user. Steps must be:
+	1.	View Positions
+	2.	Select Position
+	3.	Start Migration
+	4.	Step-by-step: approve → exit → approve → mint
+
+Each must only be shown when contextually valid.
+
+⸻
+
+8. Error Handling and Recovery
+	•	If any step fails, pause and offer a retry with clear diagnostic info (gas too low, approval rejected, etc).
+	•	Do not automatically chain txs unless explicitly allowed in dev mode.

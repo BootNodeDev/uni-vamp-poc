@@ -6,10 +6,7 @@ import {
   erc20Abi,
   isAddress,
 } from 'viem'
-import { mainnet, polygon, sepolia } from 'viem/chains'
 
-import { ENSRegistryABI } from '@/src/constants/contracts/abis/ENSRegistry'
-import { OPL1CrossDomainMessengerProxyABI } from '@/src/constants/contracts/abis/OPL1CrossDomainMessengerProxy'
 import type { ChainsIds } from '@/src/lib/networks.config'
 
 type OptionalAddresses = Partial<Record<ChainsIds, Address>>
@@ -30,29 +27,6 @@ const contracts = [
   {
     abi: erc20Abi,
     name: 'ERC20',
-  },
-  {
-    abi: erc20Abi,
-    name: 'SpecialERC20WithAddress',
-    address: {
-      [polygon.id]: '0x314159265dd8dbb310642f98f50c066173ceeeee',
-    },
-  },
-  {
-    abi: ENSRegistryABI,
-    address: {
-      [mainnet.id]: '0x314159265dd8dbb310642f98f50c066173c1259b',
-      [sepolia.id]: '0x0667161579ce7e84EF2b7333f9F93375a627799B',
-    },
-    name: 'EnsRegistry',
-  },
-  {
-    abi: OPL1CrossDomainMessengerProxyABI,
-    address: {
-      [mainnet.id]: '0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1',
-      [sepolia.id]: '0x58Cc85b8D04EA49cC6DBd3CbFFd00B4B8D6cb3ef',
-    },
-    name: 'OPL1CrossDomainMessengerProxy',
   },
 ] as const satisfies ContractConfig<Abi>[]
 
