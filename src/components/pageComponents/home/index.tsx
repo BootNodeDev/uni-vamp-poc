@@ -2,7 +2,6 @@
  * Home page for Balancer to Uniswap v4 migration
  */
 import { BalancerUserPositions } from '@/src/components/BalancerUserPositions'
-import UniswapV4Deposit from '@/src/components/UniswapV4Deposit'
 import { ConnectWalletButton } from '@/src/providers/Web3Provider'
 import { Title } from '@bootnodedev/db-ui-toolkit'
 import styled from 'styled-components'
@@ -80,8 +79,6 @@ export const Home = () => {
       <BalancerUserPositions userAddress={address} />
 
       <SectionDivider />
-
-      <UniswapV4Deposit />
     </Container>
   )
 }

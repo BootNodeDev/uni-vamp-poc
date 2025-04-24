@@ -1,11 +1,14 @@
+import UniswapV4Deposit from '@/src/components/UniswapV4DepositButton'
 import { useBalancerPositions } from '@/src/hooks/useBalancerPositions'
 import { useRemoveLiquidityProportional } from '@/src/hooks/useExitBalancerPool'
-import type { PoolShare } from '@/src/types/balancer'
+import type { PoolShare, PoolToken } from '@/src/types/balancer'
 import { calculateUserTokenShares } from '@/src/utils/getUserPoolShares'
 import { Button, Card, Title } from '@bootnodedev/db-ui-toolkit'
+import { Token } from '@uniswap/sdk-core'
 import { useState } from 'react'
 import styled from 'styled-components'
 import { parseUnits } from 'viem'
+import { base } from 'viem/chains'
 import { useAccount } from 'wagmi'
 
 const PositionsContainer = styled.div`
@@ -135,7 +138,11 @@ const getPoolExplorerUrl = (poolId: string) => {
   return `https://app.balancer.fi/#/base/pool/${poolId}`
 }
 
-const PositionActions = ({ position }: { position: PoolShare }) => {
+const PositionActions = ({
+  position,
+  tokens,
+  amounts,
+}: { position: PoolShare; tokens: PoolToken[]; amounts: Record<string, number> }) => {
   const [status, setStatus] = useState<'idle' | 'exiting' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
@@ -202,6 +209,22 @@ const PositionActions = ({ position }: { position: PoolShare }) => {
 
   const statusMessage = getStatusMessage()
 
+  const token0 = new Token(
+    base.id,
+    tokens[0].address as `0x${string}`,
+    tokens[0].decimals,
+    tokens[0].symbol,
+    tokens[0].name,
+  )
+
+  const token1 = new Token(
+    base.id,
+    tokens[1].address as `0x${string}`,
+    tokens[1].decimals,
+    tokens[1].symbol,
+    tokens[1].name,
+  )
+
   return (
     <>
       <ButtonContainer>
@@ -213,12 +236,13 @@ const PositionActions = ({ position }: { position: PoolShare }) => {
           {status === 'exiting' ? 'Exiting...' : 'Exit Pool'}
         </ActionButton>
 
-        <ActionButton
-          $variant="primary"
-          disabled={status !== 'success'}
-        >
-          Migrate to Uniswap v4
-        </ActionButton>
+        <UniswapV4Deposit
+          token0={token0}
+          token1={token1}
+          amount0={parseUnits(amounts[tokens[0].symbol].toString(), tokens[0].decimals)}
+          amount1={parseUnits(amounts[tokens[1].symbol].toString(), tokens[1].decimals)}
+          enabled={status === 'success'}
+        />
       </ButtonContainer>
 
       {statusMessage && <StatusMessage>{statusMessage}</StatusMessage>}
@@ -280,8 +304,11 @@ export const BalancerUserPositions = ({ userAddress }: { userAddress: string }) 
               </TokenItem>
             ))}
           </TokenList>
-
-          <PositionActions position={position} />
+          <PositionActions
+            position={position}
+            tokens={position.pool.tokens}
+            amounts={userTokenShares[i]}
+          />
         </PositionCard>
       ))}
     </PositionsContainer>

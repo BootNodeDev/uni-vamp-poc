@@ -2,6 +2,7 @@ export interface Token {
   address: string
   symbol: string
   decimals: number
+  name: string
 }
 
 export interface PoolToken {
@@ -10,6 +11,7 @@ export interface PoolToken {
   symbol: string
   decimals: number
   balance: string
+  name: string
 }
 
 export interface Pool {

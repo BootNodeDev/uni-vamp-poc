@@ -20,6 +20,7 @@ const query = gql`
           symbol
           decimals
           balance
+          name
         }
       }
     }
