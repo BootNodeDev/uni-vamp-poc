@@ -8,16 +8,16 @@ import {
 } from '@balancer/sdk'
 // src/hooks/useRemoveLiquidityProportional.ts
 import { useCallback } from 'react'
-import { publicActions } from 'viem'
+import { type TransactionReceipt, publicActions } from 'viem'
 import { usePublicClient, useWalletClient } from 'wagmi'
 
 /**
- * Hook: useRemoveLiquidityProportional
+ * Hook: useExitBalancerPool
  * -----------------------------------
- * Provides methods to remove liquidity proportionally from Balancer V3 pools.
+ * Provides methods to exit Balancer V3 pools.
  * Supports single, batch, and PoolShare-based removals.
  */
-export function useRemoveLiquidityProportional() {
+export function useExitBalancerPool() {
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
 
@@ -29,7 +29,7 @@ export function useRemoveLiquidityProportional() {
    * @returns Promise<string> resolves to transaction hash.
    */
   const removeOne = useCallback(
-    async (bptIn: InputAmount): Promise<string> => {
+    async (bptIn: InputAmount): Promise<TransactionReceipt> => {
       if (!walletClient || !publicClient) {
         throw new Error('Wallet or public client not initialized')
       }
@@ -75,7 +75,12 @@ export function useRemoveLiquidityProportional() {
         value: call.value,
       })
 
-      return txHash
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 2,
+      })
+
+      return receipt
     },
     [walletClient, publicClient],
   )

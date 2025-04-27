@@ -136,7 +136,7 @@ const UniswapV4UserPositions = ({ userAddress }: { userAddress: string }) => {
     return <LoadingState>Loading your Uniswap v4 positions...</LoadingState>
   }
 
-  if (!positions) {
+  if (!positions?.length) {
     return <LoadingState>No positions found</LoadingState>
   }
 

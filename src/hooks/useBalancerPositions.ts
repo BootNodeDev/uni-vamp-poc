@@ -32,7 +32,7 @@ async function fetchBalancerPositions(userAddress: string) {
     user: userAddress.toLowerCase(),
   })
 
-  return data.poolShares.filter((s: PoolShare) => BigInt(s.balance) > 0n)
+  return data.poolShares.filter((s: PoolShare) => Number(s.balance) > 0)
 }
 
 export function useBalancerPositions(userAddress: string) {
@@ -40,5 +40,7 @@ export function useBalancerPositions(userAddress: string) {
     queryKey: ['balancer-v3-positions', userAddress],
     queryFn: () => fetchBalancerPositions(userAddress),
     enabled: !!userAddress,
+    staleTime: Number.POSITIVE_INFINITY, // Never mark data as stale
+    gcTime: Number.POSITIVE_INFINITY, // Keep data in cache forever
   })
 }

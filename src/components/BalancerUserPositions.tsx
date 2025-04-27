@@ -1,6 +1,7 @@
-import UniswapV4Deposit from '@/src/components/UniswapV4DepositButton'
 import { useBalancerPositions } from '@/src/hooks/useBalancerPositions'
-import { useRemoveLiquidityProportional } from '@/src/hooks/useExitBalancerPool'
+import { useExitBalancerPool } from '@/src/hooks/useExitBalancerPool'
+import { useUniswapV4Deposit } from '@/src/hooks/useUniswapV4Deposit'
+import { useV4Pool } from '@/src/hooks/useUniswapV4Pool'
 import type { PoolShare, PoolToken } from '@/src/types/balancer'
 import { calculateUserTokenShares } from '@/src/utils/getUserPoolShares'
 import { Button, Card, Title } from '@bootnodedev/db-ui-toolkit'
@@ -142,38 +143,80 @@ const PositionActions = ({
   position,
   tokens,
   amounts,
-}: { position: PoolShare; tokens: PoolToken[]; amounts: Record<string, number> }) => {
-  const [status, setStatus] = useState<'idle' | 'exiting' | 'success' | 'error'>('idle')
+  refreshBalancerPositions,
+}: {
+  position: PoolShare
+  tokens: PoolToken[]
+  amounts: Record<string, number>
+  refreshBalancerPositions: () => void
+}) => {
+  const [status, setStatus] = useState<'idle' | 'migrating' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
   const { address } = useAccount()
-  const { removeOne } = useRemoveLiquidityProportional()
+  const { removeOne } = useExitBalancerPool()
+
+  const token0 = new Token(
+    base.id,
+    tokens[0].address as `0x${string}`,
+    tokens[0].decimals,
+    tokens[0].symbol,
+    tokens[0].name,
+  )
+
+  const token1 = new Token(
+    base.id,
+    tokens[1].address as `0x${string}`,
+    tokens[1].decimals,
+    tokens[1].symbol,
+    tokens[1].name,
+  )
+
+  const { data: pool } = useV4Pool({
+    tokenA: {
+      token: token0,
+      amount: parseUnits(amounts[tokens[0].symbol].toString(), tokens[0].decimals),
+    },
+    tokenB: {
+      token: token1,
+      amount: parseUnits(amounts[tokens[1].symbol].toString(), tokens[1].decimals),
+    },
+  })
+
+  const sendTx = useUniswapV4Deposit(
+    pool,
+    { token: token0, amount: parseUnits(amounts[tokens[0].symbol].toString(), tokens[0].decimals) },
+    { token: token1, amount: parseUnits(amounts[tokens[1].symbol].toString(), tokens[1].decimals) },
+  )
 
   const handleExit = async () => {
     if (!address) return
 
     try {
-      setStatus('exiting')
+      setStatus('migrating')
       setError(null)
 
-      // Debug balance information
-      console.log('Exiting position:')
-      console.log(`- Pool ID: ${position.pool.id}`)
-      console.log(`- Raw Balance: ${position.balance}`)
-      console.log(`- Pool Address: ${position.pool.address}`)
-      console.log(`- Token Count: ${position.pool.tokens.length}`)
-
-      // Execute exit for this single share
-      // get the decimals from the pool with readContract
-
-      const hash = await removeOne({
+      // Remove liquidity from Balancer
+      const receipt = await removeOne({
         address: position.pool.address as `0x${string}`,
         decimals: 18,
         rawAmount: parseUnits(position.balance, 18),
       })
 
-      setTxHash(hash)
-      setStatus('success')
+      if (receipt.status === 'success') {
+        // Deposit liquidity into Uniswap V4
+        const receipt = await sendTx()
+
+        if (receipt) {
+          setTxHash(receipt.transactionHash)
+          setStatus('success')
+          refreshBalancerPositions()
+        } else {
+          throw new Error('Transaction reverted')
+        }
+      } else {
+        throw new Error('Transaction reverted')
+      }
     } catch (err) {
       console.error('Error exiting pool:', err)
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -183,8 +226,8 @@ const PositionActions = ({
 
   const getStatusMessage = () => {
     switch (status) {
-      case 'exiting':
-        return 'Exiting pool... Please sign the transaction in your wallet.'
+      case 'migrating':
+        return 'Migrating pool... Please sign the transaction in your wallet.'
       case 'success':
         return (
           <>
@@ -209,40 +252,16 @@ const PositionActions = ({
 
   const statusMessage = getStatusMessage()
 
-  const token0 = new Token(
-    base.id,
-    tokens[0].address as `0x${string}`,
-    tokens[0].decimals,
-    tokens[0].symbol,
-    tokens[0].name,
-  )
-
-  const token1 = new Token(
-    base.id,
-    tokens[1].address as `0x${string}`,
-    tokens[1].decimals,
-    tokens[1].symbol,
-    tokens[1].name,
-  )
-
   return (
     <>
       <ButtonContainer>
         <ActionButton
           $variant="secondary"
           onClick={handleExit}
-          disabled={status === 'exiting'}
+          disabled={status === 'migrating'}
         >
-          {status === 'exiting' ? 'Exiting...' : 'Exit Pool'}
+          {status === 'migrating' ? 'Migrating...' : 'Migrate liquidity to Uniswap V4'}
         </ActionButton>
-
-        <UniswapV4Deposit
-          token0={token0}
-          token1={token1}
-          amount0={parseUnits(amounts[tokens[0].symbol].toString(), tokens[0].decimals)}
-          amount1={parseUnits(amounts[tokens[1].symbol].toString(), tokens[1].decimals)}
-          enabled={status === 'success'}
-        />
       </ButtonContainer>
 
       {statusMessage && <StatusMessage>{statusMessage}</StatusMessage>}
@@ -250,13 +269,23 @@ const PositionActions = ({
   )
 }
 
-export const BalancerUserPositions = ({ userAddress }: { userAddress: string }) => {
-  const { data: positions, isLoading, error } = useBalancerPositions(userAddress)
+export const BalancerUserPositions = ({
+  userAddress,
+}: {
+  userAddress: string
+}) => {
+  const {
+    data: positions,
+    isLoading,
+    error,
+    refetch: refreshBalancerPositions,
+  } = useBalancerPositions(userAddress)
   if (isLoading) {
     return <LoadingState>Loading your Balancer positions...</LoadingState>
   }
 
   if (error) {
+    console.error(error)
     return <ErrorState>Error loading positions. Please try again.</ErrorState>
   }
 
@@ -308,6 +337,7 @@ export const BalancerUserPositions = ({ userAddress }: { userAddress: string }) 
             position={position}
             tokens={position.pool.tokens}
             amounts={userTokenShares[i]}
+            refreshBalancerPositions={refreshBalancerPositions}
           />
         </PositionCard>
       ))}

@@ -7,7 +7,7 @@ import { type Pool, Position, V4PositionManager } from '@uniswap/v4-sdk'
 import { sendTransaction } from 'viem/actions'
 import { useBlock } from 'wagmi'
 
-export function useUniswapPosition(
+export function useUniswapV4Deposit(
   pool: Pool | undefined,
   tokenA: { token: Token; amount: bigint },
   tokenB: { token: Token; amount: bigint },
@@ -67,12 +67,18 @@ export function useUniswapPosition(
       },
     })
 
-    return await sendTransaction(walletClient, {
+    const txHash = await sendTransaction(walletClient, {
       account: user,
       to: V4_POSITION_MANAGER_ADDRESS_BASE,
       data: calldata as `0x${string}`,
       value: BigInt(value),
     })
+
+    const receipt = await readOnlyClient.waitForTransactionReceipt({
+      hash: txHash,
+    })
+
+    return receipt
   }
 
   return sendTx
