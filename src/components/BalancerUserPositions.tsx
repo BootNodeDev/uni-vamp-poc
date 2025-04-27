@@ -2,6 +2,7 @@ import { useBalancerPositions } from '@/src/hooks/useBalancerPositions'
 import { useExitBalancerPool } from '@/src/hooks/useExitBalancerPool'
 import { useUniswapV4Deposit } from '@/src/hooks/useUniswapV4Deposit'
 import { useV4Pool } from '@/src/hooks/useUniswapV4Pool'
+import { useUniswapV4Positions } from '@/src/hooks/useUniswapv4Positions'
 import type { PoolShare, PoolToken } from '@/src/types/balancer'
 import { calculateUserTokenShares } from '@/src/utils/getUserPoolShares'
 import { Button, Card, Title } from '@bootnodedev/db-ui-toolkit'
@@ -143,18 +144,22 @@ const PositionActions = ({
   position,
   tokens,
   amounts,
-  refreshBalancerPositions,
 }: {
   position: PoolShare
   tokens: PoolToken[]
   amounts: Record<string, number>
-  refreshBalancerPositions: () => void
 }) => {
   const [status, setStatus] = useState<'idle' | 'migrating' | 'success' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
   const [txHash, setTxHash] = useState<string | null>(null)
   const { address } = useAccount()
   const { removeOne } = useExitBalancerPool()
+
+  if (!address) {
+    throw new Error('No address found')
+  }
+  const { refetch: refreshUniswapV4Positions } = useUniswapV4Positions(address)
+  const { refetch: refreshBalancerPositions } = useBalancerPositions(address)
 
   const token0 = new Token(
     base.id,
@@ -211,6 +216,7 @@ const PositionActions = ({
           setTxHash(receipt.transactionHash)
           setStatus('success')
           refreshBalancerPositions()
+          refreshUniswapV4Positions()
         } else {
           throw new Error('Transaction reverted')
         }
@@ -274,12 +280,7 @@ export const BalancerUserPositions = ({
 }: {
   userAddress: string
 }) => {
-  const {
-    data: positions,
-    isLoading,
-    error,
-    refetch: refreshBalancerPositions,
-  } = useBalancerPositions(userAddress)
+  const { data: positions, isLoading, error } = useBalancerPositions(userAddress)
   if (isLoading) {
     return <LoadingState>Loading your Balancer positions...</LoadingState>
   }
@@ -337,7 +338,6 @@ export const BalancerUserPositions = ({
             position={position}
             tokens={position.pool.tokens}
             amounts={userTokenShares[i]}
-            refreshBalancerPositions={refreshBalancerPositions}
           />
         </PositionCard>
       ))}

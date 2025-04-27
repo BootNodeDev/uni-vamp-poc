@@ -76,6 +76,7 @@ export function useUniswapV4Deposit(
 
     const receipt = await readOnlyClient.waitForTransactionReceipt({
       hash: txHash,
+      confirmations: 3,
     })
 
     return receipt

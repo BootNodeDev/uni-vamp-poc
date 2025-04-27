@@ -7,10 +7,10 @@ import {
 import { useQuery } from '@tanstack/react-query'
 import request, { gql } from 'graphql-request'
 import type { Address } from 'viem'
-import { useReadContracts } from 'wagmi'
 const endpoint =
   'https://gateway.thegraph.com/api/subgraphs/id/HNCFA9TyBqpo5qpe6QreQABAA1kV8g46mhkCcicu6v2R'
 
+import { useWeb3Status } from '@/src/hooks/useWeb3Status'
 import { Token } from '@uniswap/sdk-core'
 import { Pool, Position as V4Position } from '@uniswap/v4-sdk'
 import { encodeAbiParameters, erc20Abi, keccak256 } from 'viem'
@@ -80,194 +80,355 @@ async function fetchPositions(ownerAddress: string) {
 }
 
 export function useUniswapV4Positions(ownerAddress: string) {
+  const { readOnlyClient } = useWeb3Status()
+
   const {
-    data,
-    error,
+    data: positions,
     isLoading: isLoadingPositions,
+    refetch,
   } = useQuery({
-    queryFn: () => fetchPositions(ownerAddress),
     queryKey: ['uniswapV4Positions', ownerAddress],
-  })
+    queryFn: async () => {
+      const sgPositions = await fetchPositions(ownerAddress)
+      if (!readOnlyClient || !sgPositions) return []
 
-  const { data: rawData, isLoading: isLoadingRawData } = useReadContracts({
-    multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
-    contracts:
-      data?.positions.flatMap((position) => [
-        {
-          address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
-          abi: positionManagerABI,
-          functionName: 'getPositionLiquidity',
-          args: [position.tokenId],
-        },
-        {
-          address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
-          abi: positionManagerABI,
-          functionName: 'getPoolAndPositionInfo',
-          args: [position.tokenId],
-        },
-      ]) ?? [],
-    query: {
-      enabled: !!data?.positions.length,
-    },
-  }) as {
-    isLoading: boolean
-    data: {
-      status: 'success' | 'error'
-      result: any
-    }[]
-  }
+      const positions = (await readOnlyClient.multicall({
+        contracts: sgPositions.positions.flatMap((position) => [
+          {
+            address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
+            abi: positionManagerABI,
+            functionName: 'getPositionLiquidity',
+            args: [position.tokenId],
+          },
+          {
+            address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
+            abi: positionManagerABI,
+            functionName: 'getPoolAndPositionInfo',
+            args: [position.tokenId],
+          },
+        ]),
+      })) as {
+        status: 'success' | 'error'
+        result: any
+      }[]
 
-  const enrichedPositions = data?.positions
-    .map((position, index) => {
-      const liquidityRes = rawData?.[index * 2]
-      const infoRes = rawData?.[index * 2 + 1]
+      const enrichedPositions = positions
+        .map((_, index) => {
+          const liquidityRes = positions?.[index * 2]
+          const infoRes = positions?.[index * 2 + 1]
 
-      if (
-        liquidityRes?.status !== 'success' ||
-        infoRes?.status !== 'success' ||
-        (liquidityRes.result === 0n && liquidityRes)
-      )
-        return null
+          if (
+            liquidityRes?.status !== 'success' ||
+            infoRes?.status !== 'success' ||
+            (liquidityRes.result === 0n && liquidityRes)
+          )
+            return null
 
-      const liquidity = liquidityRes.result as bigint
-      const [poolKey, info] = infoRes.result as [any, bigint]
+          const liquidity = liquidityRes.result as bigint
+          const [poolKey, info] = infoRes.result as [any, bigint]
 
-      let poolId: string | null = null
-      try {
-        poolId = getPoolIdFromPoolKey(poolKey)
-      } catch (error) {
-        console.error(error)
-        poolId = null
-      }
-      // acá podés hacer decodePositionInfo(info) si querés
-      return {
-        tokenId: position.tokenId,
-        liquidity,
-        poolKey,
-        rawInfo: info,
-        poolInfo: decodePositionInfo(info),
-        poolId,
-      }
-    })
-    .filter(Boolean)
+          let poolId: string | null = null
+          try {
+            poolId = getPoolIdFromPoolKey(poolKey)
+          } catch (error) {
+            console.error(error)
+            poolId = null
+          }
 
-  const poolTokens = enrichedPositions?.flatMap((position) => [
-    position?.poolKey.currency0,
-    position?.poolKey.currency1,
-  ])
+          return {
+            tokenId: sgPositions.positions[index].tokenId,
+            liquidity,
+            poolKey,
+            rawInfo: info,
+            poolInfo: decodePositionInfo(info),
+            poolId,
+          }
+        })
+        .filter(Boolean)
 
-  const { data: tokensInfo, isLoading: isLoadingTokensInfo } = useReadContracts({
-    multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
-    contracts: poolTokens?.flatMap((token) => [
-      {
-        address: token as Address,
-        abi: erc20Abi,
-        functionName: 'decimals',
-        args: [],
-      },
-      {
-        address: token as Address,
-        abi: erc20Abi,
-        functionName: 'symbol',
-        args: [],
-      },
-    ]),
-    query: {
-      enabled: !!poolTokens?.length,
-    },
-  })
+      if (!enrichedPositions.length) return []
 
-  let token0: Token | null = null
-  let token1: Token | null = null
-  try {
-    token0 = new Token(
-      base.id,
-      poolTokens?.[0] as Address,
-      tokensInfo?.[0]?.result as number,
-      tokensInfo?.[1]?.result as string,
-    )
+      const poolTokens = enrichedPositions?.flatMap((position) => [
+        position?.poolKey.currency0,
+        position?.poolKey.currency1,
+      ])
 
-    token1 = new Token(
-      base.id,
-      poolTokens?.[1] as Address,
-      tokensInfo?.[2]?.result as number,
-      tokensInfo?.[3]?.result as string,
-    )
-  } catch (error) {
-    console.error(error)
-  }
-
-  const { data: slot0Data, isLoading: isLoadingSlot0Data } = useReadContracts({
-    multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
-    contracts: enrichedPositions?.map((position) => ({
-      address: V4_STATE_VIEW_ADDRESS_BASE as Address,
-      abi: StateViewABI,
-      functionName: 'getSlot0',
-      args: [position?.poolId],
-    })),
-    query: {
-      enabled: !!enrichedPositions?.length,
-    },
-  })
-
-  type Slot0Result = readonly [bigint, number, number, number]
-
-  const positionsWithSlot0 = enrichedPositions?.map((position, index) => {
-    const slot0 = slot0Data?.[index]
-    if (!slot0?.result || !Array.isArray(slot0.result)) return null
-    const result = slot0.result as Slot0Result
-    return {
-      ...position,
-      slot0: {
-        sqrtPrice: result[0],
-        tick: result[1],
-        fee: result[2],
-        ipFee: result[3],
-      },
-    }
-  })
-
-  const positionsWithSlot0AndAmounts = positionsWithSlot0?.map((position) => {
-    if (!position?.slot0 || !position?.liquidity || !position?.poolInfo || !token0 || !token1)
-      return null
-
-    try {
-      const pool = new Pool(
-        token0,
-        token1,
-        position.poolKey.fee,
-        position.poolKey.tickSpacing,
-        position.poolKey.hooks,
-        position.slot0.sqrtPrice.toString(),
-        '1',
-        position.slot0.tick,
-      )
-
-      const amounts = new V4Position({
-        pool,
-        liquidity: position.liquidity.toString(),
-        tickLower: position.poolInfo.tickLower,
-        tickUpper: position.poolInfo.tickUpper,
+      const tokensInfo = await readOnlyClient.multicall({
+        contracts: poolTokens?.flatMap((token) => [
+          {
+            address: token as Address,
+            abi: erc20Abi,
+            functionName: 'decimals',
+            args: [],
+          },
+          {
+            address: token as Address,
+            abi: erc20Abi,
+            functionName: 'symbol',
+            args: [],
+          },
+        ]),
       })
 
-      return {
-        poolId: position.poolId,
-        token0: token0,
-        token1: token1,
-        amounts: {
-          amount0: amounts.amount0.toSignificant(6),
-          amount1: amounts.amount1.toSignificant(6),
-        },
-      }
-    } catch (error) {
-      console.error(error)
-      return null
-    }
+      const token0 = new Token(
+        base.id,
+        poolTokens?.[0] as Address,
+        tokensInfo?.[0]?.result as number,
+        tokensInfo?.[1]?.result as string,
+      )
+
+      const token1 = new Token(
+        base.id,
+        poolTokens?.[1] as Address,
+        tokensInfo?.[2]?.result as number,
+        tokensInfo?.[3]?.result as string,
+      )
+
+      const slot0Data = await readOnlyClient.multicall({
+        contracts: enrichedPositions?.map((position) => ({
+          address: V4_STATE_VIEW_ADDRESS_BASE as Address,
+          abi: StateViewABI,
+          functionName: 'getSlot0',
+          args: [position?.poolId],
+        })),
+      })
+
+      const positionsWithSlot0 = enrichedPositions?.map((position, index) => {
+        const slot0 = slot0Data?.[index]
+        if (!slot0?.result || !Array.isArray(slot0.result)) return null
+        const result = slot0.result
+        return {
+          ...position,
+          slot0: {
+            sqrtPrice: result[0],
+            tick: result[1],
+            fee: result[2],
+            ipFee: result[3],
+          },
+        }
+      })
+
+      const positionsWithSlot0AndAmounts = positionsWithSlot0?.map((position) => {
+        if (!position?.slot0 || !position?.liquidity || !position?.poolInfo || !token0 || !token1)
+          return null
+
+        try {
+          const pool = new Pool(
+            token0,
+            token1,
+            position.poolKey.fee,
+            position.poolKey.tickSpacing,
+            position.poolKey.hooks,
+            position.slot0.sqrtPrice.toString(),
+            '1',
+            position.slot0.tick,
+          )
+
+          const amounts = new V4Position({
+            pool,
+            liquidity: position.liquidity.toString(),
+            tickLower: position.poolInfo.tickLower,
+            tickUpper: position.poolInfo.tickUpper,
+          })
+
+          return {
+            poolId: position.poolId,
+            token0: token0,
+            token1: token1,
+            amounts: {
+              amount0: amounts.amount0.toSignificant(6),
+              amount1: amounts.amount1.toSignificant(6),
+            },
+          }
+        } catch (error) {
+          console.error(error)
+          return null
+        }
+      })
+
+      return positionsWithSlot0AndAmounts
+    },
   })
 
+  // const { data: rawData, isLoading: isLoadingRawData } = useReadContracts({
+  //   multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
+  //   contracts:
+  //     data?.positions.flatMap((position) => [
+  //       {
+  //         address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
+  //         abi: positionManagerABI,
+  //         functionName: 'getPositionLiquidity',
+  //         args: [position.tokenId],
+  //       },
+  //       {
+  //         address: V4_POSITION_MANAGER_ADDRESS_BASE as Address,
+  //         abi: positionManagerABI,
+  //         functionName: 'getPoolAndPositionInfo',
+  //         args: [position.tokenId],
+  //       },
+  //     ]) ?? [],
+  //   query: {
+  //     enabled: !!data?.positions.length,
+  //   },
+  // }) as {
+  //   isLoading: boolean
+  //   data: {
+  //     status: 'success' | 'error'
+  //     result: any
+  //   }[]
+  // }
+
+  // const enrichedPositions = data?.positions
+  //   .map((position, index) => {
+  //     const liquidityRes = rawData?.[index * 2]
+  //     const infoRes = rawData?.[index * 2 + 1]
+
+  //     if (
+  //       liquidityRes?.status !== 'success' ||
+  //       infoRes?.status !== 'success' ||
+  //       (liquidityRes.result === 0n && liquidityRes)
+  //     )
+  //       return null
+
+  //     const liquidity = liquidityRes.result as bigint
+  //     const [poolKey, info] = infoRes.result as [any, bigint]
+
+  //     let poolId: string | null = null
+  //     try {
+  //       poolId = getPoolIdFromPoolKey(poolKey)
+  //     } catch (error) {
+  //       console.error(error)
+  //       poolId = null
+  //     }
+  //     // acá podés hacer decodePositionInfo(info) si querés
+  //     return {
+  //       tokenId: position.tokenId,
+  //       liquidity,
+  //       poolKey,
+  //       rawInfo: info,
+  //       poolInfo: decodePositionInfo(info),
+  //       poolId,
+  //     }
+  //   })
+  //   .filter(Boolean)
+
+  // const poolTokens = enrichedPositions?.flatMap((position) => [
+  //   position?.poolKey.currency0,
+  //   position?.poolKey.currency1,
+  // ])
+
+  // const { data: tokensInfo, isLoading: isLoadingTokensInfo } = useReadContracts({
+  //   multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
+  //   contracts: poolTokens?.flatMap((token) => [
+  //     {
+  //       address: token as Address,
+  //       abi: erc20Abi,
+  //       functionName: 'decimals',
+  //       args: [],
+  //     },
+  //     {
+  //       address: token as Address,
+  //       abi: erc20Abi,
+  //       functionName: 'symbol',
+  //       args: [],
+  //     },
+  //   ]),
+  //   query: {
+  //     enabled: !!poolTokens?.length,
+  //   },
+  // })
+
+  // let token0: Token | null = null
+  // let token1: Token | null = null
+  // try {
+  //   token0 = new Token(
+  //     base.id,
+  //     poolTokens?.[0] as Address,
+  //     tokensInfo?.[0]?.result as number,
+  //     tokensInfo?.[1]?.result as string,
+  //   )
+
+  //   token1 = new Token(
+  //     base.id,
+  //     poolTokens?.[1] as Address,
+  //     tokensInfo?.[2]?.result as number,
+  //     tokensInfo?.[3]?.result as string,
+  //   )
+  // } catch (error) {
+  //   console.error(error)
+  // }
+
+  // const { data: slot0Data, isLoading: isLoadingSlot0Data } = useReadContracts({
+  //   multicallAddress: '0xca11bde05977b3631167028862be2a173976ca11',
+  //   contracts: enrichedPositions?.map((position) => ({
+  //     address: V4_STATE_VIEW_ADDRESS_BASE as Address,
+  //     abi: StateViewABI,
+  //     functionName: 'getSlot0',
+  //     args: [position?.poolId],
+  //   })),
+  //   query: {
+  //     enabled: !!enrichedPositions?.length,
+  //   },
+  // })
+
+  // type Slot0Result = readonly [bigint, number, number, number]
+
+  // const positionsWithSlot0 = enrichedPositions?.map((position, index) => {
+  //   const slot0 = slot0Data?.[index]
+  //   if (!slot0?.result || !Array.isArray(slot0.result)) return null
+  //   const result = slot0.result as Slot0Result
+  //   return {
+  //     ...position,
+  //     slot0: {
+  //       sqrtPrice: result[0],
+  //       tick: result[1],
+  //       fee: result[2],
+  //       ipFee: result[3],
+  //     },
+  //   }
+  // })
+
+  // const positionsWithSlot0AndAmounts = positionsWithSlot0?.map((position) => {
+  //   if (!position?.slot0 || !position?.liquidity || !position?.poolInfo || !token0 || !token1)
+  //     return null
+
+  //   try {
+  //     const pool = new Pool(
+  //       token0,
+  //       token1,
+  //       position.poolKey.fee,
+  //       position.poolKey.tickSpacing,
+  //       position.poolKey.hooks,
+  //       position.slot0.sqrtPrice.toString(),
+  //       '1',
+  //       position.slot0.tick,
+  //     )
+
+  //     const amounts = new V4Position({
+  //       pool,
+  //       liquidity: position.liquidity.toString(),
+  //       tickLower: position.poolInfo.tickLower,
+  //       tickUpper: position.poolInfo.tickUpper,
+  //     })
+
+  //     return {
+  //       poolId: position.poolId,
+  //       token0: token0,
+  //       token1: token1,
+  //       amounts: {
+  //         amount0: amounts.amount0.toSignificant(6),
+  //         amount1: amounts.amount1.toSignificant(6),
+  //       },
+  //     }
+  //   } catch (error) {
+  //     console.error(error)
+  //     return null
+  //   }
+  // })
+
   return {
-    positions: positionsWithSlot0AndAmounts,
-    error,
-    isLoading: isLoadingRawData || isLoadingTokensInfo || isLoadingSlot0Data || isLoadingPositions,
+    positions,
+    isLoading: isLoadingPositions,
+    refetch,
   }
 }
