@@ -1,6 +1,6 @@
 import { usePermit2BatchSignature } from '@/src/hooks/usePermit2BatchSignature'
-import { V4_POSITION_MANAGER_ADDRESS_BASE } from '@/src/hooks/useUniswapV4Pool'
 import { useWeb3Status } from '@/src/hooks/useWeb3Status'
+import { V4_POSITION_MANAGER_ADDRESS_BASE } from '@/src/utils/uniswapv4'
 import { Percent, type Token } from '@uniswap/sdk-core'
 import { TickMath, nearestUsableTick } from '@uniswap/v3-sdk'
 import { type Pool, Position, V4PositionManager } from '@uniswap/v4-sdk'

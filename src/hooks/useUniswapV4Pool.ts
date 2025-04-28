@@ -3,6 +3,12 @@
  * fee tier, tick spacing, and hooks configuration.
  */
 
+import {
+  StateViewABI,
+  V4_POSITION_MANAGER_ADDRESS_BASE,
+  V4_STATE_VIEW_ADDRESS_BASE,
+  positionManagerABI,
+} from '@/src/utils/uniswapv4'
 import { ZERO_ADDRESS } from '@balancer/sdk'
 import type { Token } from '@uniswap/sdk-core'
 import { TickMath, encodeSqrtRatioX96 } from '@uniswap/v3-sdk'
@@ -12,98 +18,6 @@ import { slice } from 'viem'
 import { useReadContracts } from 'wagmi'
 
 const JSBigInt = JSBI.BigInt
-/**
- * Address of the Uniswap V4 Position Manager contract on the relevant network (e.g., Base Sepolia).
- */
-export const V4_POSITION_MANAGER_ADDRESS_BASE = '0x7C5f5A4bBd8fD63184577525326123B519429bDc'
-export const V4_STATE_VIEW_ADDRESS_BASE = '0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71'
-
-/**
- * Minimal ABI for the V4 Position Manager contract, focusing on the `poolKeys` function.
- */
-export const positionManagerABI = [
-  {
-    inputs: [{ internalType: 'bytes25', name: 'poolId', type: 'bytes25' }],
-    name: 'poolKeys',
-    outputs: [
-      { internalType: 'address', name: 'currency0', type: 'address' },
-      { internalType: 'address', name: 'currency1', type: 'address' },
-      { internalType: 'uint24', name: 'fee', type: 'uint24' },
-      { internalType: 'int24', name: 'tickSpacing', type: 'int24' },
-      { internalType: 'address', name: 'hooks', type: 'address' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'bytes[]', name: 'data', type: 'bytes[]' }],
-    name: 'multicall',
-    outputs: [{ internalType: 'bytes[]', name: 'results', type: 'bytes[]' }],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'uint256', name: 'tokenId', type: 'uint256' }],
-    name: 'getPositionLiquidity',
-    outputs: [{ internalType: 'uint128', name: 'liquidity', type: 'uint128' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      {
-        internalType: 'uint256',
-        name: 'tokenId',
-        type: 'uint256',
-      },
-    ],
-    name: 'getPoolAndPositionInfo',
-    outputs: [
-      {
-        components: [
-          { internalType: 'address', name: 'currency0', type: 'address' },
-          { internalType: 'address', name: 'currency1', type: 'address' },
-          { internalType: 'uint24', name: 'fee', type: 'uint24' },
-          { internalType: 'int24', name: 'tickSpacing', type: 'int24' },
-          { internalType: 'address', name: 'hooks', type: 'address' },
-        ],
-        internalType: 'struct PoolKey',
-        name: 'poolKey',
-        type: 'tuple',
-      },
-      {
-        internalType: 'uint256',
-        name: 'info',
-        type: 'uint256',
-      },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
-
-// getSlot0 ABI
-export const StateViewABI = [
-  {
-    inputs: [{ internalType: 'bytes32', name: 'poolId', type: 'bytes32' }],
-    name: 'getSlot0',
-    outputs: [
-      { internalType: 'uint160', name: 'sqrtPriceX96', type: 'uint160' },
-      { internalType: 'int24', name: 'tick', type: 'int24' },
-      { internalType: 'uint24', name: 'protocolFee', type: 'uint24' },
-      { internalType: 'uint24', name: 'lpFee', type: 'uint24' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ internalType: 'bytes32', name: 'poolId', type: 'bytes32' }],
-    name: 'getLiquidity',
-    outputs: [{ internalType: 'uint128', name: 'liquidity', type: 'uint128' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-] as const
 
 /**
  * Custom hook to check if a specific Uniswap V4 pool exists.
@@ -187,14 +101,6 @@ export function useV4Pool({
   const liquidityData = poolData?.[2]?.result
 
   const poolExists = poolKeysData && Number(poolKeysData[3]) > 0
-
-  console.log({
-    poolExists,
-    token0Amount: token0.amount.toString(),
-    token1Amount: token1.amount.toString(),
-    sqrtPriceX96: encodeSqrtRatioX96(1, 1).toString(),
-    slot0Data: slot0Data,
-  })
 
   const sqrtPriceX96 =
     poolExists && slot0Data ? slot0Data[0].toString() : encodeSqrtRatioX96(1, 1).toString()
