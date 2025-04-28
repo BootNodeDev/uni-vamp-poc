@@ -40,7 +40,7 @@ export function useExitBalancerPool() {
 
       // 2. Define remove-liquidity parameters
       const kind = RemoveLiquidityKind.Proportional as const
-      const slippage = Slippage.fromPercentage('5')
+      const slippage = Slippage.fromPercentage('10')
 
       // 3. Fetch on-chain pool state
       const api = new BalancerApi('https://api-v3.balancer.fi/', chainId)
@@ -49,12 +49,11 @@ export function useExitBalancerPool() {
       // 4. Prepare RemoveLiquidity helper
       const removeLiquidity = new RemoveLiquidity()
       const rpcUrl = (publicClient.transport as any).url as string
-      const blockNumber = await publicClient.getBlockNumber()
+      const block = await publicClient.getBlock()
 
       // 5. Query to compute amountsOut and auxiliary data
       const input = { chainId, rpcUrl, kind, bptIn }
-      console.log('input', input)
-      const queryOutput = await removeLiquidity.query(input, poolState, blockNumber)
+      const queryOutput = await removeLiquidity.query(input, poolState, block.number)
 
       // 6. Sign permit (EIP‑2612) if needed
       const permit = await PermitHelper.signRemoveLiquidityApproval({
@@ -62,10 +61,14 @@ export function useExitBalancerPool() {
         slippage,
         client,
         owner: walletClient.account,
+        deadline: block.timestamp + 300n,
       })
 
       // 7. Applies slippage to the BPT out amount and constructs the call
       const call = removeLiquidity.buildCallWithPermit({ ...queryOutput, slippage } as any, permit)
+
+      console.log('Balancer query output:', queryOutput)
+      console.log('Balancer BPT in:', bptIn)
 
       // 8. Send on-chain transaction
       const txHash = await walletClient.sendTransaction({
