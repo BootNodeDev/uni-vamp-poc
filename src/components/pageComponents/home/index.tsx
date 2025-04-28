@@ -131,7 +131,6 @@ const TokenBalanceAmount = styled.div`
 const UniswapV4UserPositions = ({ userAddress }: { userAddress: string }) => {
   const { positions, isLoading } = useUniswapV4Positions(userAddress)
 
-  console.log(positions)
   if (isLoading) {
     return <LoadingState>Loading your Uniswap v4 positions...</LoadingState>
   }

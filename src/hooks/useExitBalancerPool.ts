@@ -61,7 +61,7 @@ export function useExitBalancerPool() {
         slippage,
         client,
         owner: walletClient.account,
-        deadline: block.timestamp + 300n,
+        // deadline: block.timestamp + 300n,
       })
 
       // 7. Applies slippage to the BPT out amount and constructs the call
