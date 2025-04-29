@@ -16,8 +16,8 @@ With just a few clicks, users can:
 This project is about making migrations simple, efficient, and delightful ✨.
 
 ---
+![animated gif flow](https://s4.gifyu.com/images/bLHJm.gif)
 
-![image](https://github.com/user-attachments/assets/593b39ff-34f9-4210-8b70-a78d392223db)
 
 ## Tech Stack
 
