@@ -41,9 +41,15 @@ const JSBigInt = JSBI.BigInt
 export function useV4Pool({
   tokenA,
   tokenB,
+  fee = 100,
+  tickSpacing = 1,
+  hooks = ZERO_ADDRESS,
 }: {
   tokenA: { token: Token; amount: bigint }
   tokenB: { token: Token; amount: bigint }
+  fee?: number
+  tickSpacing?: number
+  hooks?: `0x${string}`
 }) {
   // Prepare ordered PoolKey parameters
 
@@ -51,12 +57,6 @@ export function useV4Pool({
     tokenA.token.address.toLowerCase() < tokenB.token.address.toLowerCase()
       ? [tokenA, tokenB]
       : [tokenB, tokenA]
-
-  // Sort amounts to ensure token0 is the smaller amount
-
-  const fee = 100 // 0.01% fee
-  const tickSpacing = 1 // fix value to match with the existing pool: https://basescan.org/address/0x7C5f5A4bBd8fD63184577525326123B519429bDc#code
-  const hooks = ZERO_ADDRESS // No custom hooks
 
   // calculate the poolId from the token pair, fee, tick spacing, and hooks
   const poolId32Bytes = Pool.getPoolId(

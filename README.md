@@ -1,176 +1,181 @@
-[![dAppBooster Logo](https://dappbooster.dev/share/repo_banner.svg)](https://dappbooster.dev)
+# Uni Vamp PoC
 
-# dAppBooster
+## What's Uni Vamp?
 
-![Static Badge](https://img.shields.io/badge/dApp-Booster-green?style=flat&color=%238b46a4)
-![GitHub package.json version](https://img.shields.io/github/package-json/v/BootNodeDev/dAppBooster?style=flat&color=%238b46a4) ![GitHub top language](https://img.shields.io/github/languages/top/bootnodedev/dappbooster) ![GitHub branch status](https://img.shields.io/github/checks-status/bootnodedev/dappbooster/main) ![GitHub License](https://img.shields.io/github/license/bootnodedev/dappbooster)
+**Uni Vamp** is a proof of concept that shows how to **migrate liquidity from Balancer to Uniswap V4 on Base mainnet** — in one smooth, gas-optimized flow.
+Built with **dappBooster**, **Balancer SDK**, **Uniswap V4 SDK**, **Permit2 SDK**, and leveraging **Subgraphs**, it connects everything you need into a fast, developer-friendly experience.
 
-[dAppBooster](https://dappbooster.dev) is a template to help you in the development of blockchain frontend applications. It aims to provide an opinionated set of tools and best practices to speed up the development process and make it more reliable.
+With just a few clicks, users can:
+- See their Balancer positions on Base mainnet
+- Exit pools and collect the tokens
+- Batch-sign token approvals with Permit2 using Permit2 SDK
+- Create new pool or use existing ones depending on the token pair, fee, tickSpacing, and hooks on Uniswap V4
+- Create new Uniswap V4 liquidity position with the tokens previously collected
+- Track their Uniswap V4 positions easily
 
-Check out the documentation for more information about building your first dApp: [docs.dappbooster.dev](https://docs.dappbooster.dev/)
+This project is about making migrations simple, efficient, and delightful ✨.
 
-## Table of Contents
+---
 
-1. [Requirements](#requirements)
-2. [Installation](#installation)
-3. [Configuration](#configuration)
-4. [Development](#development)
-5. [Advanced configuration](#advanced-configuration)
-6. [Contributing](#contributing)
+![image](https://github.com/user-attachments/assets/593b39ff-34f9-4210-8b70-a78d392223db)
 
-## Requirements
+## Tech Stack
 
-- Node v20+
-- pnpm
+- **Frontend:**
+  - [dappBooster](https://dappbooster.dev)
 
-## Installation
+- **Blockchain / SDKs:**
+  - [Balancer SDK](https://github.com/balancer/b-sdk)
+  - [Uniswap V4 SDK](https://github.com/Uniswap/sdks/tree/main/sdks/v4-sdk)
+  - [Permit2 SDK](https://github.com/Uniswap/sdks/tree/main/sdks/permit2-sdk)
 
-Ensure `pnpm` is installed (https://pnpm.io/) and clone the repository.
+- **Data Sources:**
+  - [Uniswap V4 Base Subgraph](https://api.studio.thegraph.com/query/24660/uniswap-v4-base/version/latest)
+  - [Balancer Base V2 Subgraph](https://api.studio.thegraph.com/query/24660/balancer-base-v2/version/latest)
+  - [StateView Contract](https://basescan.org/address/0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71#code)
+  - [Permit2 Contract](https://basescan.org/address/0x000000000022D473030F116dDEE9F6B43aC78BA3#code)
+  - [Position Manager Contract](https://basescan.org/address/0x7C5f5A4bBd8fD63184577525326123B519429bDc#code)
 
-```bash
-# Clone the repository
-git clone git@github.com:BootNodeDev/dAppBooster.git my-dapp
+---
 
-# Change the directory
-cd my-dapp
+## How it works (the hooks)
 
-# Checkout the latest release
-git checkout main
+- `useBalancerPositions`
+  - Fetches all user's liquidity positions on Balancer V3 using the Base mainnet Subgraph
 
-# Create a local .env file
-cp .env.example .env.local
+- `useExitBalancerPool`
+  - Removes liquidity from a selected Balancer pool on Base mainnet
+  - Supports "permit" signatures to avoid expensive approval transactions
 
-# Install the dependencies
-pnpm i
-```
+- `usePermit2BatchSignature`
+  - Batch-signs token allowances with Permit2
+  - Avoids multiple ERC20 `approve` transactions
 
-Now you might want to change your project's name and description in the `package.json` file.
+- `useV4Pool`
+  - Calculates and checks if a Uniswap V4 pool exists for the selected token pair on Base mainnet
 
-```json
-{
-  "name": "my-dapp",
-  "description": "My dApp"
-}
-```
+- `useUniswapV4Deposit`
+  - Handles the creation of a Uniswap V4 liquidity position on Base mainnet
+  - Combines token amounts, Permit2 signature, and pool data to create and send the addLiquidity transaction
 
-Also you might want to change your project's remote repository to a different one.
+- `useUniswapV4Positions`
+  - Lists the user's active Uniswap V4 positions by fetching tokenIds from the Base mainnet Subgraph and reading on-chain pool and liquidity info
 
-```bash
-# Change the remote repository
-git remote set-url origin
-```
+---
 
-## Configuration
-
-### Configuration File
-
-Configure the appropriate settings in the `.env.local` file. Most vars are optional and they should be self-explanatory.
-
-## Development
-
-### Serve dev mode
+## Quick Start
 
 ```bash
+git clone <repo-url>
+cd uni-vamp-poc
+pnpm install
 pnpm dev
 ```
 
-You can start modifying the content of the home page by editing `src/components/pageComponents/home/index.tsx`. The page auto-updates as you edit the file.
+### Requirements:
+- Base mainnet RPC endpoint
+- Access to Balancer and Uniswap Subgraphs on Base mainnet
+- Environment variables:
+  ```env
+  NEXT_PUBLIC_RPC_URL=https://mainnet.base.org
+  NEXT_PUBLIC_SUBGRAPH_API_KEY=your-api-key
+  ```
 
-You can also modify and see how our Web3 components work in the [demos folder](src/components/pageComponents/home/Examples/demos).
+---
 
-### Build for production
+## Examples (Real usage)
 
-```bash
-pnpm build
+### 1. Listing Balancer Positions
+
+```tsx
+const { data: positions, isLoading } = useBalancerPositions(userAddress);
+
+return (
+  <div>
+    {isLoading ? 'Loading...' : positions?.map((p) => <div key={p.pool.address}>{p.pool.tokens.map(t => t.symbol).join(' / ')}</div>)}
+  </div>
+);
 ```
 
-### Serve production build
+### 2. Exiting a Balancer Pool
 
-```bash
-pnpm preview
+```tsx
+const { removeOne } = useExitBalancerPool();
+
+await removeOne({
+  address: poolAddress,
+  amount: '1000000000000000000' // 1 BPT in wei
+});
 ```
 
-## Basic folder structure
+### 3. Batch Signing Token Approvals with Permit2
 
-- `src/`: Source code
-  - `components/`: Reusable components
-    - `components/sharedComponents`: Components shared across multiple pages
-    - `components/pageComponents`: Components specific to a page
-  - `routes/`: TanStack Router routes
-  - `styles/`: App styles
+```tsx
+const { sign } = usePermit2BatchSignature({
+  tokens: [token0Address, token1Address],
+  spender: V4_POSITION_MANAGER_ADDRESS_BASE,
+});
 
-## Advanced configuration
-
-### Networks
-
-To add / remove / edit a network supported by the dApp you can do it directly in the [`networks.config.ts`](src/lib/networks.config.ts) file.
-
-1. Import the supported network of your choice, say `base`.
-
-```diff
-- import { mainnet, optimismSepolia, sepolia } from 'viem/chains'
-+ import { base, mainnet, optimismSepolia, sepolia } from 'viem/chains'
-
-...
-
-- export const chains = [mainnet, optimismSepolia, sepolia] as const
-+ export const chains = [base, mainnet, optimismSepolia, sepolia] as const
-
+const permitSignature = await sign();
 ```
 
-2. Include it in the trasports, using the default RPC provided by wagmi/viem...
+### 4. Checking if a Uniswap V4 Pool Exists
 
-```diff
-export const transports: RestrictedTransports = {
-    ...
-+   [base.id]: http(env.PUBLIC_RPC_BASE),
+```tsx
+const { data: pool, isLoading } = useV4Pool({
+  tokenA: { token: token0, amount: amount0 },
+  tokenB: { token: token1, amount: amount1 },
+  fee: 100,
+  tickSpacing: 1,
+  hooks: ZERO_ADDRESS,
+});
+
+if (pool) {
+  console.log('Pool exists:', pool);
 }
 ```
 
-#### Specifying the RPC
+### 5. Creating a Uniswap V4 Position
 
-If you want to use an RPC different from the one provided by wagmi
+```tsx
+const sendDeposit = useUniswapV4Deposit(pool, { token: token0, amount: amount0 }, { token: token1, amount: amount1 });
 
-1. Define the env variable
-
-```diff
-+ PUBLIC_RPC_BASE=https://base.llamarpc.com
+await sendDeposit();
 ```
 
-2. Import it in the [`src/env.ts`](src/env.ts) file
+### 6. Listing Uniswap V4 Positions
 
-```diff
-export const env = createEnv({
-  client: {
-    ...
-+   PUBLIC_RPC_BASE: z.string().optional(),
-  },
-})
+```tsx
+const { positions } = useUniswapV4Positions(userAddress);
+
+return (
+  <div>
+    {positions?.map(p => (
+      <div key={p.poolId}>{p.token0.symbol} / {p.token1.symbol}: {p.amounts.amount0} - {p.amounts.amount1}</div>
+    ))}
+  </div>
+);
 ```
 
-**Note:** if not specified, it will be `undefined` making the app to use the wagmi-defined RPC.
+---
 
-### ESLint configuration for production releases
+## Possible Roadmap
 
-If you are developing a production application, we recommend updating the [configuration file](.eslintrc) to enable type aware lint rules:
+- Show all uniswap v4 pools on the selected token pair and allow users to select the best one.
+- Allow users to select custom price ranges when creating Uniswap V4 positions.
+- Allow users to select custom hooks when creating Uniswap V4 positions. (can be create a new pool)
+- Better error handling and transaction feedback.
+- Multi-position migration flow (batch exit + batch deposit).
+- Slippage tolerance configuration.
+- Improved UI/UX for liquidity migration steps.
+- Add anothers networks support.
+- Add anothers protocols support to start the migration to uniswap v4. (now only Balancer)
+---
 
-- Configure the top-level `parserOptions` property like this:
+## License
 
-```cjs
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
+This is a PoC for research and demonstration purposes. 
+Feel free to explore, fork, and improve it.
 
-- Replace `plugin:@typescript-eslint/recommended` for `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
+(c) 2025
 
-## Contributing
-
-If you want to contribute to this project, please read the [contributing guidelines](CONTRIBUTING.md). Issues and pull requests are welcome!
