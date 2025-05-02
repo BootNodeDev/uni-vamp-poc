@@ -82,7 +82,7 @@
     "jsdom": "^25.0.1",
     "lint-staged": "^15.5.1",
     "postcss-styled-syntax": "^0.6.4",
-    "stylelint": "^16.18.0",
+    "stylelint": "^16.19.1",
     "stylelint-config-standard": "^36.0.1",
     "ts-node": "^10.9.2",
     "typedoc": "^0.26.11",
