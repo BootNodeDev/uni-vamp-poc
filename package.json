@@ -93,7 +93,7 @@
     "typescript": "^5.8.3",
     "vite": "^6.3.1",
     "vitest": "^3.1.1",
-    "vocs": "1.0.0-alpha.59"
+    "vocs": "1.0.0-alpha.62"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
