@@ -55,7 +55,7 @@
     "styled-components": "^6.1.17",
     "use-debounce": "^10.0.4",
     "viem": "^2.27.2",
-    "wagmi": "^2.14.16",
+    "wagmi": "^2.15.4",
     "zod": "^3.24.3"
   },
   "devDependencies": {
